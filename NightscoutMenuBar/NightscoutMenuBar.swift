@@ -36,9 +36,6 @@ struct NightscoutMenuBarApp: App {
                     settings.glIsEditToken = false
                 }
                 .environmentObject(settings)
-                .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { _ in
-                    nsmodel.statusItem.checkVisibility()
-                }
         }
     }
 }
@@ -126,33 +123,15 @@ func reset() {
     getEntries()
 }
 
-//func to extract values from the tab delimited API response.
-//Example
-//"2023-12-19T20:51:01.000Z"    1703019061045.407    160    "FortyFiveDown"    "loop://Dexcom/G6/21.0"
-
-func addRawEntry(rawEntry: String) {
-    let entryArr = rawEntry.components(separatedBy: "\t") as [String]
-    if entryArr.count > 2 {
-        if let epochTimeMilliseconds = Double(entryArr[1]),
-           let bgMg = Int(entryArr[2]) {
-            let epochTimeSeconds = epochTimeMilliseconds / 1000.0
-            let time = Date(timeIntervalSince1970: epochTimeSeconds)
-            
-            let oneHourAgo = Date().addingTimeInterval(-3600)
-            guard time >= oneHourAgo else {
-                return
-            }
-            
-            //Round mmol to 1dp
-            let bgMmol = helpers().convertbgMgToMmol(bgMg: bgMg)
-            let direction = String(entryArr[3].replacingOccurrences(of: "\"", with: ""))
-            
-            let newEntry = Entry(time: time, bgMg: bgMg, bgMmol: bgMmol, direction: direction)
-            store.entries.insert(newEntry, at: 0)
-        } else {
-            print("Error: Invalid epoch time or bgMg value")
-        }
-    }
+func addRawEntry(rawEntry: [String: Any]) {
+    let bgMg = rawEntry["sgv"] as! Int
+    let entry = Entry(
+        time: Date(timeIntervalSince1970: (rawEntry["date"] as! Double) / 1000.0),
+        bgMg: bgMg,
+        bgMmol: helpers().convertbgMgToMmol(bgMg: bgMg),
+        direction: rawEntry["direction"] as! String
+    )
+    store.entries.insert(entry, at: 0)
 }
 
 func destroyMenuItem() {
@@ -173,11 +152,11 @@ func getEntries() {
     var fullNightscoutUrl = ""
     
     if (accessToken != "") {
-        fullNightscoutUrl = nightscoutUrl + "/api/v1/entries?count=60&token=" + accessToken
+        fullNightscoutUrl = nightscoutUrl + "/sgv.json?count=60&token=" + accessToken
     } else {
-        fullNightscoutUrl = nightscoutUrl + "/api/v1/entries?count=60"
+        fullNightscoutUrl = nightscoutUrl + "/sgv.json?count=60"
     }
-
+    
     if(helpers().isNetworkAvailable() != true) {
         handleNetworkFail(reason: "No network")
         return
@@ -211,10 +190,13 @@ func getEntries() {
                 return
             }
             DispatchQueue.main.async {
-                let responseData = String(data: data, encoding: String.Encoding.utf8)
                 store.entries.removeAll()
-                let entries = responseData!.components(separatedBy: .newlines)
-                entries.forEach({entry in addRawEntry(rawEntry: entry) })
+                do {
+                    let entries = try JSONSerialization.jsonObject(with: data, options: []) as! [[String: Any]]
+                    entries.forEach({entry in addRawEntry(rawEntry: entry) })
+                } catch {
+                    print("Failed to parse JSON: \(error)")
+                }
                 if (store.entries.isEmpty) {
                     handleNetworkFail(reason: "no valid data")
                     return
@@ -227,9 +209,8 @@ func getEntries() {
                 if (isStaleEntry(entry: store.entries[0], staleThresholdMin: 15)) {
                     nsmodel.updateDisplay(message: "???",extraMessage: "No recent readings from CGM")
                 } else {
-                    
-                    if (showLoopData == true && pumpDataIndicator() != "") {
-                        nsmodel.updateDisplay(message: pumpDataIndicator() + " " + bgValueFormatted(entry: store.entries[0]), extraMessage: "No recent data from Pump")
+                    if (showLoopData == true) {
+                        nsmodel.updateDisplay(message: bgValueFormatted(entry: store.entries[0]) + " | IOB: " + (otherinfo.loopIob.isEmpty ? "???" : otherinfo.loopIob), extraMessage: nil)
                     } else {
                         nsmodel.updateDisplay(message: bgValueFormatted(entry: store.entries[0]), extraMessage: nil)
                     }
@@ -267,62 +248,6 @@ func getEntries() {
 
 
 func pumpDataIndicator() -> String {
-    let pumpAgo = otherinfo.pumpAgo
-    let pumpAgoRange = NSRange(
-        pumpAgo.startIndex..<pumpAgo.endIndex,
-        in: pumpAgo
-    )
-
-    print(pumpAgo)
-    // Create A NSRegularExpression
-    let capturePattern =
-        #"(?<val>\d+)"# +
-        #"(?<unit>.)"# +
-    #".+"#
-
-    let pumpAgoRegex = try! NSRegularExpression(
-        pattern: capturePattern,
-        options: []
-    )
-    
-    // Find the matching capture groups
-    let matches = pumpAgoRegex.matches(
-        in: pumpAgo,
-        options: [],
-        range: pumpAgoRange
-    )
-
-    guard let match = matches.first else {
-        // Handle exception
-        print("couldn't match regex for pumpAgo")
-        return ""
-    }
-    
-    var captures: [String: String] = [:]
-
-    // For each matched range, extract the named capture group
-    for name in ["val", "unit"] {
-        let matchRange = match.range(withName: name)
-        // Extract the substring matching the named capture group
-        if let substringRange = Range(matchRange, in: pumpAgo) {
-            let capture = String(pumpAgo[substringRange])
-            captures[name] = capture
-        }
-    }
-
-    let pumpAgoVal = Int(captures["val"] ?? "0") ?? 0
-    if (captures["unit"] == "m" && pumpAgoVal > 0) {
-        if (pumpAgoVal > 5) {
-            return "⚠"
-        }
-        
-        if (pumpAgoVal > 20) {
-            return "☇"
-        }
-    }
-    if (captures["unit"] == "h") {
-        return "☇"
-    }
     return ""
 }
 
@@ -333,9 +258,9 @@ func getProperties() {
     var fullNightscoutUrl = ""
     
     if (accessToken != "") {
-        fullNightscoutUrl = nightscoutUrl + "/api/v2/properties?token=" + accessToken
+        fullNightscoutUrl = nightscoutUrl + "/pebble?token=" + accessToken
     } else {
-        fullNightscoutUrl = nightscoutUrl + "/api/v2/properties"
+        fullNightscoutUrl = nightscoutUrl + "/pebble"
     }
     
     if (isValidURL(url: fullNightscoutUrl) == false) {
@@ -396,19 +321,8 @@ func getProperties() {
 
 func parseExtraInfo(properties: [String: Any]) {
     //get IOB
-    if let iob = properties["iob"] as? [String: Any] {
-        if let iobDisplay = iob["display"] as? Int {
-            otherinfo.loopIob = String(iobDisplay)
-        } else if let iobDisplay = iob["display"] as? Double {
-            otherinfo.loopIob = String(iobDisplay)
-        } else if let iobDisplay = iob["display"] as? String {
-            otherinfo.loopIob = iobDisplay
-        } else {
-            print("iob not found")
-        }
-    } else {
-        print("iob not found")
-    }
+    let iob = (properties["bgs"] as! [[String: Any]])[0]["iob"] as! String
+    otherinfo.loopIob = iob
     
     //get COB
     if let cob = properties["cob"] as? [String: Any] {

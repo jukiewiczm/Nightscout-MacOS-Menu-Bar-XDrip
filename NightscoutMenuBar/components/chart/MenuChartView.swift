@@ -16,7 +16,7 @@ struct MenuChartView: View {
             VStack {
                 Chart {
                     ForEach(bgChartData.values) { entry in
-                        if (entry.time > Calendar.current.date(byAdding: .minute, value: -45, to: Date())!) {
+                        if (entry.time > Calendar.current.date(byAdding: .minute, value: -240, to: Date())!) {
                             LineMark(
                                 x: .value("Time", entry.time, unit: .minute),
                                 y: .value("BG", entry.bg)
@@ -30,11 +30,11 @@ struct MenuChartView: View {
                     AxisMarks(position: .leading)
                 }
                 .chartYScale(domain: minVal...maxVal)
-                .chartXScale(domain: Calendar.current.date(byAdding: .minute, value: -45, to: Date())!...Date())
+                .chartXScale(domain: Calendar.current.date(byAdding: .minute, value: -240, to: Date())!...Date())
                 .chartXAxis {
                     let unit: Calendar.Component = .minute
 
-                    AxisMarks(values: .stride(by: unit, count: 15)) { value in
+                    AxisMarks(values: .stride(by: unit, count: 60)) { value in
                         AxisGridLine()
                         AxisValueLabel(format: .dateTime.hour(.defaultDigits(amPM: .omitted)).minute(), centered: false, anchor: .topTrailing)
                         AxisTick(centered: true, length: 10)

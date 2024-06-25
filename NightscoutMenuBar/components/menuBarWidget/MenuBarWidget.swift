@@ -18,7 +18,6 @@ protocol MenuBarWidgetProtocol {
     func emptyHistoryMenu(entries: [String])
     func updateExtraMessage(extraMessage: String?)
     func destroyStatusItem()
-    func checkVisibility()
 }
 
 class MenuBarWidgetFactory {
@@ -52,10 +51,6 @@ class MenuBarWidget: ObservableObject, MenuBarWidgetProtocol {
         self.statusItem = statusItem
         self.hostingView = nil
         self.sizeCancellable = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [] in
-            self.checkVisibility()
-            self.startTopNotchDetector()
-        }
     }
     
     
@@ -107,34 +102,6 @@ class MenuBarWidget: ObservableObject, MenuBarWidgetProtocol {
             let frame = NSRect(origin: .zero, size: .init(width: size.width, height: 26))
             self?.hostingView?.frame = frame
             self?.statusItem.button?.frame = frame
-        }
-    }
-    
-    func checkVisibility() {
-        let isForceHidden = self.statusItem.button?.window?.occlusionState.contains(.visible) == false
-        print("Is status item force-hidden by the system:", isForceHidden)
-        if (isForceHidden == true) {
-            dockIconManager.showDock(alert: true)
-        } else {
-            dockIconManager.hideDock()
-        }
-    }
-    
-    private func startTopNotchDetector() {
-        
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.didChangeOcclusionStateNotification,
-            object: statusItem.button!.window,
-            queue: nil
-        ) { [weak self] _ in
-            guard let strongSelf = self else {
-                return
-            }
-
-            // Debounce the function call with a 0.5-second delay
-            strongSelf.debouncer.debounce(delay: 0.5) {
-                strongSelf.checkVisibility()
-            }
         }
     }
     
@@ -217,7 +184,7 @@ class MenuBarWidget: ObservableObject, MenuBarWidgetProtocol {
                 if (graphEnabled && bgChartData != nil) {
                     Chart {
                         ForEach(bgChartData!.values) { entry in
-                            if (entry.time > Calendar.current.date(byAdding: .minute, value: -45, to: Date())!) {
+                            if (entry.time > Calendar.current.date(byAdding: .minute, value: -240, to: Date())!) {
                                 LineMark(
                                     x: .value("Time", entry.time, unit: .minute),
                                     y: .value("BG", entry.bg)
@@ -228,7 +195,7 @@ class MenuBarWidget: ObservableObject, MenuBarWidgetProtocol {
                     .chartYAxis(.hidden)
                     .chartXAxis(.hidden)
                     .chartYScale(domain: minVal...maxVal)
-                    .chartXScale(domain: Calendar.current.date(byAdding: .minute, value: -45, to: Date())!...Date())
+                    .chartXScale(domain: Calendar.current.date(byAdding: .minute, value: -240, to: Date())!...Date())
                     .layoutPriority(1)
                     .frame(width: 70, height: 26, alignment: .center)
                     .padding(.bottom, 5)
