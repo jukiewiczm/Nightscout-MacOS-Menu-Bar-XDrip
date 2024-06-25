@@ -111,13 +111,13 @@ class MenuBarWidget: ObservableObject, MenuBarWidgetProtocol {
     }
     
     func checkVisibility() {
-        let isForceHidden = self.statusItem.button?.window?.occlusionState.contains(.visible) == false
-        print("Is status item force-hidden by the system:", isForceHidden)
-        if (isForceHidden == true) {
-            dockIconManager.showDock(alert: true)
-        } else {
-            dockIconManager.hideDock()
-        }
+//        let isForceHidden = self.statusItem.button?.window?.occlusionState.contains(.visible) == false
+////        print("Is status item force-hidden by the system:", isForceHidden)
+////        if (isForceHidden == true) {
+////            dockIconManager.showDock(alert: false)
+////        } else {
+////            dockIconManager.hideDock()
+////        }
     }
     
     private func startTopNotchDetector() {

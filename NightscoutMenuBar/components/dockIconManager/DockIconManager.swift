@@ -45,12 +45,8 @@ class DockIconManager {
     }
     
     func dockWasClicked() {
-        if (self.alert && !isAlertShowing) {
-            showTopNotchAlert()
-        } else {
-            nsmodel.statusItem.checkVisibility()
-        }
-        
+        nsmodel.statusItem.checkVisibility()
+        NSApp.activate(ignoringOtherApps: true)
     }
     
     private func showTopNotchAlert() {

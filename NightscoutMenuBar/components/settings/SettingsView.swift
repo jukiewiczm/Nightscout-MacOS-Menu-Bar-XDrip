@@ -45,14 +45,6 @@ struct SettingsView: View {
                 },
                           onCommit: {
                     settings.glIsEdit = false
-                    if (settings.glUrlTemp != "") {
-                        let rawUrl = URL(string: settings.glUrlTemp)!
-                        if (rawUrl.port != nil) {
-                            settings.glUrlTemp = (rawUrl.scheme ?? "") + "://" + (rawUrl.host ?? "") + (":" + String(rawUrl.port!))
-                        } else {
-                            settings.glUrlTemp = (rawUrl.scheme ?? "") + "://" + (rawUrl.host ?? "")
-                        }
-                    }
                     
                     nightscoutUrl = settings.glUrlTemp
                     settings.glUrl =  settings.glUrlTemp
